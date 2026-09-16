@@ -1,0 +1,228 @@
+const sqlite3 = require('sqlite3').verbose();
+const path = require('path');
+const fs = require('fs');
+
+const dbPath = path.join(__dirname, 'data', 'changedeploy.db');
+
+const ensureDataDir = () => {
+  const dataDir = path.dirname(dbPath);
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+  }
+};
+
+let db = null;
+
+const getDB = () => {
+  if (!db) {
+    ensureDataDir();
+    db = new sqlite3.Database(dbPath, (err) => {
+      if (err) {
+        console.error('Database connection error:', err);
+      } else {
+        console.log('Connected to SQLite database');
+      }
+    });
+  }
+  return db;
+};
+
+const initializeSchema = (callback) => {
+  const database = getDB();
+
+  database.serialize(() => {
+    // Change requests table
+    database.run(`
+      CREATE TABLE IF NOT EXISTS change_requests (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        description TEXT,
+        environment TEXT NOT NULL,
+        severity TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'Pending Approval',
+        risk_score INTEGER NOT NULL,
+        owner TEXT NOT NULL,
+        approver TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        deployment_status TEXT DEFAULT 'Not Started',
+        rollback_status TEXT DEFAULT 'Ready',
+        summary TEXT
+      )
+    `);
+
+    // Approvals table
+    database.run(`
+      CREATE TABLE IF NOT EXISTS approvals (
+        id TEXT PRIMARY KEY,
+        change_id TEXT NOT NULL,
+        approver TEXT NOT NULL,
+        decision TEXT NOT NULL,
+        comments TEXT,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (change_id) REFERENCES change_requests(id)
+      )
+    `);
+
+    // Deployments table (renamed to deployment_logs)
+    database.run(`
+      CREATE TABLE IF NOT EXISTS deployment_logs (
+        id TEXT PRIMARY KEY,
+        change_id TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'Queued',
+        jenkins_url TEXT,
+        pipeline_steps TEXT,
+        started_at TEXT,
+        completed_at TEXT,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (change_id) REFERENCES change_requests(id)
+      )
+    `);
+
+    // Audit logs table
+    database.run(`
+      CREATE TABLE IF NOT EXISTS audit_logs (
+        id TEXT PRIMARY KEY,
+        change_id TEXT,
+        action TEXT NOT NULL,
+        details TEXT,
+        user TEXT,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (change_id) REFERENCES change_requests(id)
+      )
+    `, (err) => {
+      if (err) {
+        console.error('Schema initialization error:', err);
+      } else {
+        console.log('Database schema initialized successfully');
+      }
+      if (callback) callback();
+    });
+  });
+};
+
+const seedData = (callback) => {
+  const database = getDB();
+  const { v4: uuidv4 } = require('uuid');
+  const now = new Date().toISOString();
+
+  database.get('SELECT COUNT(*) as count FROM change_requests', (err, row) => {
+    if (err) {
+      console.error('Error checking seed data:', err);
+      if (callback) callback();
+      return;
+    }
+
+    if (row.count === 0) {
+      const seedRecords = [
+        {
+          id: 'CR-1001',
+          title: 'API Gateway Patch',
+          description: 'Deploy the latest gateway hotfix to production with new rate limiting rules.',
+          environment: 'Production',
+          severity: 'High',
+          status: 'Pending Approval',
+          risk_score: 68,
+          owner: 'Priya Shah',
+          approver: 'Ops Manager',
+          created_at: now,
+          updated_at: now,
+          deployment_status: 'Not Started',
+          rollback_status: 'Ready',
+          summary: 'Risk is moderate due to production traffic, but change is low scope and contains rollback readiness.',
+        },
+        {
+          id: 'CR-1002',
+          title: 'Database Schema Migration',
+          description: 'Apply migration for the customer profile service and update indexes.',
+          environment: 'Staging',
+          severity: 'Medium',
+          status: 'Approved',
+          risk_score: 52,
+          owner: 'Marco Silva',
+          approver: 'Release Manager',
+          created_at: now,
+          updated_at: now,
+          deployment_status: 'Completed',
+          rollback_status: 'Ready',
+          summary: 'The migration is scoped to staging and includes a reversible snapshot strategy.',
+        },
+        {
+          id: 'CR-1003',
+          title: 'Frontend CDN Cache Purge',
+          description: 'Purge stale assets after the marketing campaign release and rewarm cache.',
+          environment: 'Production',
+          severity: 'Low',
+          status: 'Deployed',
+          risk_score: 24,
+          owner: 'Nina Patel',
+          approver: 'Platform Lead',
+          created_at: now,
+          updated_at: now,
+          deployment_status: 'Completed',
+          rollback_status: 'Not Needed',
+          summary: 'Low-risk content change with quick rollback via previous CDN configuration snapshot.',
+        },
+      ];
+
+      database.serialize(() => {
+        seedRecords.forEach((record) => {
+          database.run(
+            `INSERT INTO change_requests (id, title, description, environment, severity, status, risk_score, owner, approver, created_at, updated_at, deployment_status, rollback_status, summary)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              record.id,
+              record.title,
+              record.description,
+              record.environment,
+              record.severity,
+              record.status,
+              record.risk_score,
+              record.owner,
+              record.approver,
+              record.created_at,
+              record.updated_at,
+              record.deployment_status,
+              record.rollback_status,
+              record.summary,
+            ]
+          );
+        });
+
+        database.run(
+          `INSERT INTO audit_logs (id, change_id, action, details, user, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+          [uuidv4(), 'CR-1001', 'Created', 'Initial ServiceNow change request created.', 'System', now],
+          (err) => {
+            if (err) {
+              console.error('Error seeding data:', err);
+            } else {
+              console.log('Seed data inserted successfully');
+            }
+            if (callback) callback();
+          }
+        );
+      });
+    } else {
+      if (callback) callback();
+    }
+  });
+};
+
+const closeDB = () => {
+  if (db) {
+    db.close((err) => {
+      if (err) {
+        console.error('Error closing database:', err);
+      } else {
+        console.log('Database connection closed');
+      }
+    });
+  }
+};
+
+module.exports = {
+  getDB,
+  initializeSchema,
+  seedData,
+  closeDB,
+};

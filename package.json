@@ -1,0 +1,21 @@
+{
+  "name": "changedeploy-ai",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/frontend",
+    "apps/backend"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev --workspace apps/backend\" \"npm run dev --workspace apps/frontend\"",
+    "build": "npm run build --workspace apps/frontend",
+    "start": "concurrently \"npm run start --workspace apps/backend\" \"npm run start --workspace apps/frontend\"",
+    "install-all": "npm install && npm install --workspace apps/frontend && npm install --workspace apps/backend"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3"
+  }
+}
