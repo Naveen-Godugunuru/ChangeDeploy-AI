@@ -62,13 +62,13 @@ export default function DashboardPage() {
       ).length,
       tone: 'amber',
     },
-    {
-      label: 'High Risk',
-      value: changes.filter(
-        (c) => c.risk_score >= 70
-      ).length,
-      tone: 'rose',
-    },
+    // {
+    //   label: 'High Risk',
+    //   value: changes.filter(
+    //     (c) => c.risk_score >= 70
+    //   ).length,
+    //   tone: 'rose',
+    // },
     {
       label: 'Rollbacks',
       value: changes.filter(
@@ -149,7 +149,7 @@ export default function DashboardPage() {
                 <div className="mt-3 flex items-center justify-between text-sm text-slate-300">
                   <span>{item.environment}</span>
                   <span>Owner: {item.owner}</span>
-                  <span>Risk: {item.risk_score}</span>
+                  {/* <span>Risk: {item.risk_score}</span> */}
                 </div>
               </div>
             ))}

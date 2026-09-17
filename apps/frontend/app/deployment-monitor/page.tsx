@@ -307,10 +307,10 @@ export default function DeploymentMonitorPage() {
                       <p className="text-white font-semibold">{selectedChange.environment}</p>
                     </div>
 
-                    <div>
+                    {/* <div>
                       <p className="text-xs text-slate-400 uppercase tracking-wide mb-2">Risk Score</p>
                       <p className="text-white font-semibold">{selectedChange.risk_score}/100</p>
-                    </div>
+                    </div> */}
 
                     <div>
                       <p className="text-xs text-slate-400 uppercase tracking-wide mb-2">Owner</p>

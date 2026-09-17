@@ -15,11 +15,8 @@ const startScheduler = () => {
         FROM change_requests
         WHERE deployment_status = 'Scheduled'
       `).all();
-      console.log('ROWS FOUND =', rows.length);
-console.log(rows);
 
       rows.forEach((row) => {
-        console.log('Scheduled rows:', rows);
         if (!row.scheduled_deployment_at) {
           return;
         }
